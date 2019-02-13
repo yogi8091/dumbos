@@ -1,0 +1,12 @@
+tfbc aslimedicine
+
+Seller : Manufacturer
+Bank   : Distributor
+Buyer  : Retailer
+
+seller : manufacturer
+bank   : distributor
+buyer  : retailer
+
+TFBCOrgOrdererGenesis : AsliMedicineOrgOrdererGenesis
+TFBCOrgChannel        : AsliMedicineOrgChannel
