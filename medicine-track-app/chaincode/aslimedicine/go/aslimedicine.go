@@ -1,36 +1,24 @@
-/*
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+// SPDX-License-Identifier: Apache-2.0
 
 /*
- * The sample smart contract for documentation topic:
- * Trade Finance Use Case - WORK IN  PROGRESS
+  Sample Chaincode based on Demonstrated Scenario
+
+ This code is based on code written by the Hyperledger Fabric community.
+  Original code can be found here: https://github.com/hyperledger/fabric-samples/blob/release/chaincode/fabcar/fabcar.go
  */
 
 package main
 
-
+/* Imports
+* 4 utility libraries for handling bytes, reading and writing JSON,
+formatting, and string manipulation
+* 2 specific Hyperledger Fabric specific libraries for Smart Contracts
+*/
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/hyperledger/fabric/core/chaincode/shim"
 	sc "github.com/hyperledger/fabric/protos/peer"
@@ -40,216 +28,259 @@ import (
 type SmartContract struct {
 }
 
-
-// Define the letter of credit
-type LetterOfCredit struct {
-	LCId			string		`json:"lcId"`
-	ExpiryDate		string		`json:"expiryDate"`
-	Buyer    string   `json:"buyer"`
-	Bank		string		`json:"bank"`
-	Seller		string		`json:"seller"`
-	Amount			int		`json:"amount"`
-	Status			string		`json:"status"`
+/* Define Drug structure, with 4 properties.
+Structure tags are used by encoding/json library
+*/
+type Drug struct {
+	Manufacturer string `json:"manufacturer"`
+	Timestamp string `json:"timestamp"`
+	Location  string `json:"location"`
+	Holder  string `json:"holder"`
 }
 
-
+/*
+ * The Init method *
+ called when the Smart Contract "drug-chaincode" is instantiated by the network
+ * Best practice is to have any Ledger initialization in separate function
+ -- see initLedger()
+ */
 func (s *SmartContract) Init(APIstub shim.ChaincodeStubInterface) sc.Response {
 	return shim.Success(nil)
 }
 
+/*
+ * The Invoke method *
+ called when an application requests to run the Smart Contract "drug-chaincode"
+ The app also specifies the specific smart contract function to call with args
+ */
 func (s *SmartContract) Invoke(APIstub shim.ChaincodeStubInterface) sc.Response {
 
 	// Retrieve the requested Smart Contract function and arguments
 	function, args := APIstub.GetFunctionAndParameters()
-	// Route to the appropriate handler function to interact with the ledger appropriately
-	if function == "requestLC" {
-		return s.requestLC(APIstub, args)
-	} else if function == "issueLC" {
-		return s.issueLC(APIstub, args)
-	} else if function == "acceptLC" {
-		return s.acceptLC(APIstub, args)
-	}else if function == "getLC" {
-		return s.getLC(APIstub, args)
-	}else if function == "getLCHistory" {
-		return s.getLCHistory(APIstub, args)
-	}
+	// Route to the appropriate handler function to interact with the ledger
+	if function == "queryDrug" {
+		return s.queryDrug(APIstub, args)
+	} else if function == "initLedger" {
+		return s.initLedger(APIstub)
+	} else if function == "recordDrug" {
+		return s.recordDrug(APIstub, args)
+	} else if function == "queryAllDrug" {
+		return s.queryAllDrug(APIstub)
+	} else if function == "changeDrugHolder" {
+		return s.changeDrugHolder(APIstub, args)
+	} else if function == "queryHistDrug" {
+                return s.queryHistDrug(APIstub, args)
+        }
 
 	return shim.Error("Invalid Smart Contract function name.")
 }
 
+/*
+ * The queryDrug method *
+Used to view the records of one particular drug
+It takes one argument -- the key for the drug in question
+ */
+func (s *SmartContract) queryDrug(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
 
-
-
-
-// This function is initiate by Buyer 
-func (s *SmartContract) requestLC(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
-
-	lcId := args[0];
-	expiryDate := args[1];
-	buyer := args[2];
-	bank := args[3];
-	seller := args[4];
-	amount, err := strconv.Atoi(args[5]);
-	if err != nil {
-		return shim.Error("Not able to parse Amount")
+	if len(args) != 1 {
+		return shim.Error("Incorrect number of arguments. Expecting 1")
 	}
 
+	drugAsBytes, _ := APIstub.GetState(args[0])
+	if drugAsBytes == nil {
+		return shim.Error("Could not locate drug")
+	}
+	return shim.Success(drugAsBytes)
+}
 
-	LC := LetterOfCredit{LCId: lcId, ExpiryDate: expiryDate, Buyer: buyer, Bank: bank, Seller: seller, Amount: amount, Status: "Requested"}
-	LCBytes, err := json.Marshal(LC)
+/*
+ * The initLedger method *
+Will add test data (10 drug catches)to our network
+ */
+func (s *SmartContract) initLedger(APIstub shim.ChaincodeStubInterface) sc.Response {
+	drug := []Drug{
+		Drug{Manufacturer: "925F", Location: "67.0006, -70.5476", Timestamp: "1504054225", Holder: "KVS"},
+		Drug{Manufacturer: "M83T", Location: "91.2395, -49.4594", Timestamp: "1504057825", Holder: "Walyellows"},
+		Drug{Manufacturer: "T012", Location: "58.0148, 59.01391", Timestamp: "1493517025", Holder: "Kardinal"},
+		Drug{Manufacturer: "P490", Location: "-45.0945, 0.7949", Timestamp: "1496105425", Holder: "RX Health"},
+		Drug{Manufacturer: "S439", Location: "-107.6043, 19.5003", Timestamp: "1493512301", Holder: "AmeriDrug"},
+		Drug{Manufacturer: "J205", Location: "-155.2304, -15.8723", Timestamp: "1494117101", Holder: "Internet Pharmacy"},
+		Drug{Manufacturer: "S22L", Location: "103.8842, 22.1277", Timestamp: "1496104301", Holder: "RightAid"},
+		Drug{Manufacturer: "EI89", Location: "-132.3207, -34.0983", Timestamp: "1485066691", Holder: "Doctor's Office"},
+		Drug{Manufacturer: "129R", Location: "153.0054, 12.6429", Timestamp: "1485153091", Holder: "Anytown Hospital]"},
+		Drug{Manufacturer: "49W4", Location: "51.9435, 8.2735", Timestamp: "1487745091", Holder: "Distributor X"},
+	}
 
-    APIstub.PutState(lcId,LCBytes)
-	fmt.Println("LC Requested -> ", LC)
-
-	
+	i := 0
+	for i < len(drug) {
+		fmt.Println("i is ", i)
+		drugAsBytes, _ := json.Marshal(drug[i])
+		APIstub.PutState(strconv.Itoa(i+1), drugAsBytes)
+		fmt.Println("Added", drug[i])
+		i = i + 1
+	}
 
 	return shim.Success(nil)
 }
 
-// This function is initiate by Seller
-func (s *SmartContract) issueLC(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
+/*
+ * The recordDrug method *
+This method takes in five arguments (attributes to be saved in the ledger).
+ */
+func (s *SmartContract) recordDrug(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
 
-	lcId := args[0];
-	
-	// if err != nil {
-	// 	return shim.Error("No Amount")
-	// }
-
-	LCAsBytes, _ := APIstub.GetState(lcId)
-
-	var lc LetterOfCredit
-
-	err := json.Unmarshal(LCAsBytes, &lc)
-
-	if err != nil {
-		return shim.Error("Issue with LC json unmarshaling")
+	if len(args) != 5 {
+		return shim.Error("Incorrect number of arguments. Expecting 5")
 	}
 
+	var drug = Drug{ Manufacturer: args[1], Location: args[2], Timestamp: args[3], Holder: args[4] }
 
-	LC := LetterOfCredit{LCId: lc.LCId, ExpiryDate: lc.ExpiryDate, Buyer: lc.Buyer, Bank: lc.Bank, Seller: lc.Seller, Amount: lc.Amount, Status: "Issued"}
-	LCBytes, err := json.Marshal(LC)
-
+	drugAsBytes, _ := json.Marshal(drug)
+	err := APIstub.PutState(args[0], drugAsBytes)
 	if err != nil {
-		return shim.Error("Issue with LC json marshaling")
+		return shim.Error(fmt.Sprintf("Failed to record drug packet: %s", args[0]))
 	}
-
-    APIstub.PutState(lc.LCId,LCBytes)
-	fmt.Println("LC Issued -> ", LC)
-
 
 	return shim.Success(nil)
 }
 
-func (s *SmartContract) acceptLC(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
+/*
+ * The queryAllDrug method *
+allows for assessing all the records added to the ledger(all drug catches)
+This method does not take any arguments. Returns JSON string containing results.
+ */
+func (s *SmartContract) queryAllDrug(APIstub shim.ChaincodeStubInterface) sc.Response {
 
-	lcId := args[0];
-	
-	
+	startKey := "0"
+	endKey := "999"
 
-	LCAsBytes, _ := APIstub.GetState(lcId)
-
-	var lc LetterOfCredit
-
-	err := json.Unmarshal(LCAsBytes, &lc)
-
+	resultsIterator, err := APIstub.GetStateByRange(startKey, endKey)
 	if err != nil {
-		return shim.Error("Issue with LC json unmarshaling")
-	}
-
-
-	LC := LetterOfCredit{LCId: lc.LCId, ExpiryDate: lc.ExpiryDate, Buyer: lc.Buyer, Bank: lc.Bank, Seller: lc.Seller, Amount: lc.Amount, Status: "Accepted"}
-	LCBytes, err := json.Marshal(LC)
-
-	if err != nil {
-		return shim.Error("Issue with LC json marshaling")
-	}
-
-    APIstub.PutState(lc.LCId,LCBytes)
-	fmt.Println("LC Accepted -> ", LC)
-
-
-	
-
-	return shim.Success(nil)
-}
-
-func (s *SmartContract) getLC(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
-
-	lcId := args[0];
-	
-	// if err != nil {
-	// 	return shim.Error("No Amount")
-	// }
-
-	LCAsBytes, _ := APIstub.GetState(lcId)
-
-	return shim.Success(LCAsBytes)
-}
-
-func (s *SmartContract) getLCHistory(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
-
-	lcId := args[0];
-	
-	
-
-	resultsIterator, err := APIstub.GetHistoryForKey(lcId)
-	if err != nil {
-		return shim.Error("Error retrieving LC history.")
+		return shim.Error(err.Error())
 	}
 	defer resultsIterator.Close()
 
-	// buffer is a JSON array containing historic values for the marble
+	// buffer is a JSON array containing QueryResults
 	var buffer bytes.Buffer
 	buffer.WriteString("[")
 
 	bArrayMemberAlreadyWritten := false
 	for resultsIterator.HasNext() {
-		response, err := resultsIterator.Next()
+		queryResponse, err := resultsIterator.Next()
 		if err != nil {
-			return shim.Error("Error retrieving LC history.")
+			return shim.Error(err.Error())
 		}
-		// Add a comma before array members, suppress it for the first array member
+		// Add comma before array members,suppress it for the first array member
 		if bArrayMemberAlreadyWritten == true {
 			buffer.WriteString(",")
 		}
-		buffer.WriteString("{\"TxId\":")
+		buffer.WriteString("{\"Key\":")
 		buffer.WriteString("\"")
-		buffer.WriteString(response.TxId)
-		buffer.WriteString("\"")
-
-		buffer.WriteString(", \"Value\":")
-		// if it was a delete operation on given key, then we need to set the
-		//corresponding value null. Else, we will write the response.Value
-		//as-is (as the Value itself a JSON marble)
-		if response.IsDelete {
-			buffer.WriteString("null")
-		} else {
-			buffer.WriteString(string(response.Value))
-		}
-
-		buffer.WriteString(", \"Timestamp\":")
-		buffer.WriteString("\"")
-		buffer.WriteString(time.Unix(response.Timestamp.Seconds, int64(response.Timestamp.Nanos)).String())
+		buffer.WriteString(queryResponse.Key)
 		buffer.WriteString("\"")
 
-		buffer.WriteString(", \"IsDelete\":")
-		buffer.WriteString("\"")
-		buffer.WriteString(strconv.FormatBool(response.IsDelete))
-		buffer.WriteString("\"")
-
+		buffer.WriteString(", \"Record\":")
+		// Record is a JSON object, so we write as-is
+		buffer.WriteString(string(queryResponse.Value))
 		buffer.WriteString("}")
 		bArrayMemberAlreadyWritten = true
 	}
 	buffer.WriteString("]")
 
-	fmt.Printf("- getLCHistory returning:\n%s\n", buffer.String())
-
-	
+	fmt.Printf("- queryAllDrug:\n%s\n", buffer.String())
 
 	return shim.Success(buffer.Bytes())
 }
 
-// The main function is only relevant in unit test mode. Only included here for completeness.
+/*
+ * The queryHistDrug method *
+allows for assessing history the records added to the ledger( drug catches)
+This method takes one argument. Returns JSON string containing results.
+ */
+func (s *SmartContract) queryHistDrug(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
+        if len(args) != 1 {
+                return shim.Error("Incorrect number of arguments. Expecting 1")
+        }
+
+        drugId := args[0]
+
+        fmt.Printf("- start queryHistDrug: %s\n", drugId)
+
+        resultsIterator, err := APIstub.GetHistoryForKey(drugId)
+        if err != nil {
+                return shim.Error(err.Error())
+        }
+        defer resultsIterator.Close()
+
+        // buffer is a JSON array containing QueryResults
+        var buffer bytes.Buffer
+        buffer.WriteString("[")
+
+        bArrayMemberAlreadyWritten := false
+        for resultsIterator.HasNext() {
+                queryResponse, err := resultsIterator.Next()
+                if err != nil {
+                        return shim.Error(err.Error())
+                }
+                // Add comma before array members,suppress it for the first array member
+                if bArrayMemberAlreadyWritten == true {
+                        buffer.WriteString(",")
+                }
+
+                buffer.WriteString("{\"Key\":")
+                buffer.WriteString("\"")
+                buffer.WriteString(drugId)
+                buffer.WriteString("\"")
+
+                buffer.WriteString(", \"Record\":")
+                // Record is a JSON object, so we write as-is
+                buffer.WriteString(string(queryResponse.Value))
+                buffer.WriteString("}")
+                bArrayMemberAlreadyWritten = true
+        }
+        buffer.WriteString("]")
+
+        fmt.Printf("- queryHistDrug:\n%s\n", buffer.String())
+
+        return shim.Success(buffer.Bytes())
+}
+
+/*
+ * The changeDrugHolder method *
+The data in the world state can be updated with who has possession.
+This function takes in 2 arguments, drug id and new holder name.
+ */
+func (s *SmartContract) changeDrugHolder(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
+
+	if len(args) != 2 {
+		return shim.Error("Incorrect number of arguments. Expecting 2")
+	}
+
+	drugAsBytes, _ := APIstub.GetState(args[0])
+	if drugAsBytes == nil {
+		return shim.Error("Could not locate drug")
+	}
+	drug := Drug{}
+
+	json.Unmarshal(drugAsBytes, &drug)
+	// Normally check that the specified argument is a valid holder of drug
+	// we are skipping this check for this example
+	drug.Holder = args[1]
+
+	drugAsBytes, _ = json.Marshal(drug)
+	err := APIstub.PutState(args[0], drugAsBytes)
+	if err != nil {
+		return shim.Error(fmt.Sprintf("Failed to change drug holder: %s", args[0]))
+	}
+
+	return shim.Success(nil)
+}
+
+/*
+ * main function *
+calls the Start function
+The main function starts the chaincode in the container during instantiation.
+ */
 func main() {
 
 	// Create a new Smart Contract
