@@ -1,0 +1,8 @@
+git clone https://github.com/yogi8091/dumbos.git
+git checkout -b topic/yogi8091/march10
+git config --global core.editor "vim"
+git add Changes-Praveen-March-10.diff
+git commit
+git checkout master
+git merge topic/yogi8091/march10
+git push -u origin master
