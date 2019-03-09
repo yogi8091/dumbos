@@ -1,0 +1,126 @@
+diff --git a/medicine-track-app/chaincode/aslimedicine/go/aslimedicine.go b/medicine-track-app/chaincode/aslimedicine/go/aslimedicine.go
+index d5aa8cf..e32f4c4 100644
+--- a/medicine-track-app/chaincode/aslimedicine/go/aslimedicine.go
++++ b/medicine-track-app/chaincode/aslimedicine/go/aslimedicine.go
+@@ -1,4 +1,5 @@
+ // SPDX-License-Identifier: Apache-2.0
++//test
+ 
+ /*
+   Sample Chaincode based on Demonstrated Scenario
+@@ -19,6 +20,8 @@ import (
+ 	"encoding/json"
+ 	"fmt"
+ 	"strconv"
++	"encoding/hex"
++	"crypto/sha256"
+ 
+ 	"github.com/hyperledger/fabric/core/chaincode/shim"
+ 	sc "github.com/hyperledger/fabric/protos/peer"
+@@ -32,10 +35,15 @@ type SmartContract struct {
+ Structure tags are used by encoding/json library
+ */
+ type Drug struct {
+-	Manufacturer string `json:"manufacturer"`
+-	Timestamp string `json:"timestamp"`
++	HolderId  string `json:"holderId"`
++	Holder string `json:"holder"`
++	DrugName string `json:"drugName"`
+ 	Location  string `json:"location"`
+-	Holder  string `json:"holder"`
++	BatchNo string `json:"batchNo"`
++	ExpiryDate string `json:"expirtyDate"`
++	Latitude string `json:"latitude"`
++	Longitude string `json:"longitude"`
++	Quantity string `json:"quantity"`
+ }
+ 
+ /*
+@@ -99,16 +107,9 @@ Will add test data (10 drug catches)to our network
+  */
+ func (s *SmartContract) initLedger(APIstub shim.ChaincodeStubInterface) sc.Response {
+ 	drug := []Drug{
+-		Drug{Manufacturer: "925F", Location: "67.0006, -70.5476", Timestamp: "1504054225", Holder: "KVS"},
+-		Drug{Manufacturer: "M83T", Location: "91.2395, -49.4594", Timestamp: "1504057825", Holder: "Walyellows"},
+-		Drug{Manufacturer: "T012", Location: "58.0148, 59.01391", Timestamp: "1493517025", Holder: "Kardinal"},
+-		Drug{Manufacturer: "P490", Location: "-45.0945, 0.7949", Timestamp: "1496105425", Holder: "RX Health"},
+-		Drug{Manufacturer: "S439", Location: "-107.6043, 19.5003", Timestamp: "1493512301", Holder: "AmeriDrug"},
+-		Drug{Manufacturer: "J205", Location: "-155.2304, -15.8723", Timestamp: "1494117101", Holder: "Internet Pharmacy"},
+-		Drug{Manufacturer: "S22L", Location: "103.8842, 22.1277", Timestamp: "1496104301", Holder: "RightAid"},
+-		Drug{Manufacturer: "EI89", Location: "-132.3207, -34.0983", Timestamp: "1485066691", Holder: "Doctor's Office"},
+-		Drug{Manufacturer: "129R", Location: "153.0054, 12.6429", Timestamp: "1485153091", Holder: "Anytown Hospital]"},
+-		Drug{Manufacturer: "49W4", Location: "51.9435, 8.2735", Timestamp: "1487745091", Holder: "Distributor X"},
++		Drug{HolderId: "1", Holder: "ReddyLabs", DrugName: "Paracetmal", Location: "67.0006, -70.5476",  BatchNo: "1/1", ExpiryDate: "01/01/2025", Quantity: "5"},
++		Drug{HolderId: "1", Holder: "UnionLabs", DrugName: "acetomycin", Location: "67.0006, -70.5476",  BatchNo: "1/1", ExpiryDate: "01/01/2025", Quantity: "5"},
++		Drug{HolderId: "1", Holder: "Novo",      DrugName: "Novarapid",  Location: "67.0006, -70.5476",  BatchNo: "1/1", ExpiryDate: "01/01/2025", Quantity: "5"},
+ 	}
+ 
+ 	i := 0
+@@ -129,14 +130,12 @@ This method takes in five arguments (attributes to be saved in the ledger).
+  */
+ func (s *SmartContract) recordDrug(APIstub shim.ChaincodeStubInterface, args []string) sc.Response {
+ 
+-	if len(args) != 5 {
+-		return shim.Error("Incorrect number of arguments. Expecting 5")
+-	}
++	var drug = Drug{ HolderId: args[0], Holder: args[1], DrugName: args[2], Location: args[3], BatchNo: args[4], ExpiryDate: args[5], Latitude: args[6], Longitude: args[7], Quantity: args[8] }
+ 
+-	var drug = Drug{ Manufacturer: args[1], Location: args[2], Timestamp: args[3], Holder: args[4] }
++	sum := sha256.Sum256([]byte(args[0]+args[1]+args[2]+args[3]+args[4]+args[5]+args[6]+args[7]+args[8]))
+ 
+ 	drugAsBytes, _ := json.Marshal(drug)
+-	err := APIstub.PutState(args[0], drugAsBytes)
++	err := APIstub.PutState(hex.EncodeToString(sum[:]), drugAsBytes)
+ 	if err != nil {
+ 		return shim.Error(fmt.Sprintf("Failed to record drug packet: %s", args[0]))
+ 	}
+@@ -289,3 +288,4 @@ func main() {
+ 		fmt.Printf("Error creating new Smart Contract: %s", err)
+ 	}
+ }
++
+diff --git a/medicine-track-app/medicineTrack-api/controllerManu.js b/medicine-track-app/medicineTrack-api/controllerManu.js
+index 76a559b..baa2987 100644
+--- a/medicine-track-app/medicineTrack-api/controllerManu.js
++++ b/medicine-track-app/medicineTrack-api/controllerManu.js
+@@ -155,13 +155,15 @@ return{
+ 
+ 		var array = req.params.drug.split("-");
+ 		console.log(array);
+-
+-		var key = array[0]
+-		var timestamp = array[2]
+-		var location = array[1]
+-		var manufacturer = array[4]
+-		var holder = array[3]
+-
++		var holder = array[0]
++		var holderId = array[1]
++		var drugName = array[2]
++		var location = array[3]
++		var batchNo = array[4]
++		var expirtyDate = array[5]
++		var latitude = array[6]
++		var longitude = array[7]
++		var quantity = array[8]
+ 
+ 		var fabric_client = new Fabric_Client();
+ 
+@@ -209,7 +211,7 @@ return{
+ 		        //targets : --- letting this default to the peers assigned to the channel
+ 		        chaincodeId: 'aslimedicinecc',
+ 		        fcn: 'recordDrug',
+-		        args: [key, manufacturer, location, timestamp, holder],
++		        args: [holder, holderId, drugName, location, batchNo, expirtyDate, latitude, longitude, quantity],
+ 		        chainId: 'aslimedicinechannel',
+ 		        txId: tx_id
+ 		    };
+@@ -250,7 +252,7 @@ return{
+ 		        // get an eventhub once the fabric client has a user assigned. The user
+ 		        // is required bacause the event registration must be signed
+ 		        let event_hub = fabric_client.newEventHub();
+-		        event_hub.setPeerAddr('grpc://localhost:7053');
++		        event_hub.setPeerAddr('grpc://localhost:9053');
+ 
+ 		        // using resolve the promise so that result status may be processed
+ 		        // under the then clause rather than having the catch clause process
